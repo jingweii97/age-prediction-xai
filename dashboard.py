@@ -975,8 +975,8 @@ with tab3:
         try:
             fig, ax = plt.subplots(figsize=(10, 6))
             # Stacked Bar Plot for Multi-Class Feature Importance
-            # This shows the mean absolute SHAP value for each feature, stacked by class
-            shap.plots.bar(shap_values_global, show=False, max_display=10)
+            # Using summary_plot as it is more robust for multi-class Explanation objects than plots.bar
+            shap.summary_plot(shap_values_global, X_research, plot_type="bar", class_names=le.classes_, show=False)
             plt.title("Global Feature Importance (All Classes)", fontsize=14)
             st.pyplot(fig, clear_figure=True, bbox_inches='tight')
             plt.close()
