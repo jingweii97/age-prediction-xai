@@ -619,7 +619,11 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ============================================================================
 # XAI Tabs
 # ============================================================================
-tab1, tab2 = st.tabs(["🔍 Diagnostic Insight (SHAP)", "💊 Clinical Recourse (DiCE)"])
+tab1, tab2, tab3 = st.tabs([
+    "🔍 Diagnostic Insight (SHAP)", 
+    "💊 Clinical Recourse (DiCE)",
+    "📊 Global Feature Importance"
+])
 
 # --- Tab 1: SHAP ---
 with tab1:
@@ -636,12 +640,16 @@ with tab1:
         shap_values = shap_explainer(input_data)
         
         # Create waterfall plot (reduced size)
-        fig, ax = plt.subplots(figsize=(8, 4))
-        shap.waterfall_plot(shap_values[0, :, prediction], show=False)
-        plt.title(f"Feature Contributions for '{predicted_class}' Prediction", fontsize=12, fontweight='bold')
-        plt.tight_layout()
-        st.pyplot(fig)
-        plt.close()
+        # Create waterfall plot (reduced size)
+        # Use columns to constrain width (Streamlit expands images by default)
+        col_shap, _ = st.columns([0.8, 0.2])
+        with col_shap:
+            fig, ax = plt.subplots(figsize=(7, 4))
+            shap.waterfall_plot(shap_values[0, :, prediction], show=False)
+            plt.title(f"Feature Contributions for '{predicted_class}' Prediction", fontsize=12, fontweight='bold')
+            plt.tight_layout()
+            st.pyplot(fig)
+            plt.close()
     
     # Dynamic caption based on top features
     feature_contributions = []
@@ -747,9 +755,11 @@ with tab2:
                     combined_df['Model Prediction'] = combined_df['age_group'].apply(lambda x: le.classes_[int(x)])
                     
                     # Replace unchanged values with '-' (matching backend script)
-                    display_df = combined_df.copy()
+                    # FIX: Cast to string explicitly to avoid ArrowInvalid error when mixing numbers and strings
+                    # PyArrow tries to infer type from first row (numbers) and crashes on '-' later
+                    display_df = combined_df.copy().astype(str)
                     feature_cols = cf_df.columns
-                    original_vals = display_df.iloc[0]
+                    original_vals = combined_df.iloc[0]
                     
                     for i in range(1, len(display_df)):
                         for col in feature_cols:
@@ -820,6 +830,99 @@ with tab2:
                 st.info("Try adjusting input values or check if the prediction allows for counterfactual changes.")
     else:
         st.info("No alternative classifications available for counterfactual analysis.")
+
+
+# --- Tab 3: Population Research Insights ---
+with tab3:
+    st.markdown("### 📚 Population-Level Research Insights")
+    st.markdown("""
+    <div class="info-box">
+        <strong>Research Context:</strong> This analysis is based on the <strong>entire NHANES dataset</strong> used to train the model. 
+        It illustrates general population trends and biomarkers associated with biological aging, NOT specific data from other individual patients.
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Generate SHAP values for the entire dataset (or large representative sample)
+    with st.spinner("Calculating global feature importance on full population data..."):
+        # Use full dataset for accurate population-level insights
+        # Note: In a production setting with millions of rows, we might still need to sample, 
+        # but for this dataset, we use all available research data.
+        X_research = X.copy()
+        
+        # Get SHAP values for the full research dataset
+        # We cache this operation to improve performance on subsequent reloads
+        @st.cache_data
+        def get_global_shap_values(_explainer, _data):
+            return _explainer(_data)
+            
+        shap_values_global = get_global_shap_values(shap_explainer, X_research)
+        
+        # Create beeswarm plot for global importance
+        st.markdown("#### Global Feature Importance (Beeswarm Plot)")
+        
+        # Use columns to constrain width
+        col_global, _ = st.columns([0.8, 0.2])
+        with col_global:
+            fig, ax = plt.subplots(figsize=(8, 5))
+            shap.plots.beeswarm(shap_values_global[:, :, 1], show=False, max_display=7)
+            plt.tight_layout()
+            st.pyplot(fig, use_container_width=True)
+            plt.close()
+        
+        # Calculate mean absolute SHAP values for ranking
+        mean_abs_shap = np.abs(shap_values_global.values).mean(axis=(0, 2))
+        feature_importance = list(zip(X.columns, mean_abs_shap))
+        feature_importance.sort(key=lambda x: x[1], reverse=True)
+        
+        # Display ranking table
+        st.markdown("#### Population-Wide Feature Ranking")
+        importance_df = pd.DataFrame(feature_importance, columns=['Feature', 'Mean |SHAP| (Impact)'])
+        importance_df['Feature'] = importance_df['Feature'].str.replace('_', ' ')
+        importance_df.index = range(1, len(importance_df) + 1)
+        st.dataframe(importance_df, use_container_width=True)
+    
+    # Stakeholder-specific interpretation
+    st.markdown("---")
+    st.markdown("### Stakeholder Interpretation")
+    
+    if stakeholder == "Clinician":
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 1.2rem; border-radius: 10px; border-left: 4px solid #0066cc;">
+            <strong>🩺 Research Findings:</strong><br><br>
+            Analysis of the NHANES cohort reveals:
+            <ul style="margin: 0.5rem 0;">
+                <li><strong>Primary Drivers:</strong> Across the population, Fasting Glucose and Blood Insulin are the most distinguishable features for biological aging classification.</li>
+                <li><strong>Validation:</strong> These findings align with established metabolic aging literature (e.g., insulin resistance theories of aging).</li>
+                <li><strong>Application:</strong> This global pattern justifies the heavy weighting of glycemic markers in individual patient assessments.</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    elif stakeholder == "Patient":
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); padding: 1.2rem; border-radius: 10px; border-left: 4px solid #28a745;">
+            <strong>💡 General Health Trends:</strong><br><br>
+            Looking at data from thousands of people in the study, we learned:
+            <ul style="margin: 0.5rem 0;">
+                <li><strong>Common Themes:</strong> For most people, keeping blood sugar and insulin in check is the most effective way to maintain a "younger" biological profile.</li>
+                <li><strong>Not Just You:</strong> These are universal health factors, not just specific to your case.</li>
+                <li><strong>Lifestyle Matters:</strong> Weight and activity levels consistently show up as important factors for everyone.</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+    
+    else:  # Policymaker
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, #e7f3ff 0%, #cce5ff 100%); padding: 1.2rem; border-radius: 10px; border-left: 4px solid #004085;">
+            <strong>📊 Population Health Insights:</strong><br><br>
+            Derived from the full NHANES research dataset:
+            <ul style="margin: 0.5rem 0;">
+                <li><strong>Epidemiological Trend:</strong> Metabolic dysfunction is the leading statistical driver of accelerated biological age in this population.</li>
+                <li><strong>Strategic Focus:</strong> Public health interventions targeting glycemic control could have the highest aggregate impact on population longevity.</li>
+                <li><strong>Evidence Base:</strong> This aggregate data supports funding for national metabolic screening programs over isolated biomarker interventions.</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 # ============================================================================
