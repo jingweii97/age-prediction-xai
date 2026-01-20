@@ -6,6 +6,8 @@ A "Glass-Box" Clinical Decision Support System with XAI Features
 import streamlit as st
 import pandas as pd
 import numpy as np
+import matplotlib
+matplotlib.use('Agg') # Explicitly set backend for headless environments
 import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
@@ -644,12 +646,25 @@ with tab1:
         # Use columns to constrain width (Streamlit expands images by default)
         col_shap, _ = st.columns([0.8, 0.2])
         with col_shap:
-            fig, ax = plt.subplots(figsize=(7, 4))
-            shap.waterfall_plot(shap_values[0, :, prediction], show=False)
-            plt.title(f"Feature Contributions for '{predicted_class}' Prediction", fontsize=12, fontweight='bold')
-            plt.tight_layout()
-            st.pyplot(fig)
-            plt.close()
+            try:
+                fig, ax = plt.subplots(figsize=(7, 4))
+                shap.waterfall_plot(shap_values[0, :, prediction], show=False)
+                plt.title(f"Feature Contributions for '{predicted_class}' Prediction", fontsize=12, fontweight='bold')
+                plt.tight_layout()
+                st.pyplot(fig)
+                plt.close()
+            except Exception as e:
+                # Fallback: Try plotting without tight_layout and simpler title
+                try:
+                    plt.close() # Ensure previous figure is closed
+                    fig, ax = plt.subplots(figsize=(7, 4))
+                    shap.waterfall_plot(shap_values[0, :, prediction], show=False)
+                    plt.title("Feature Contributions", fontsize=12, fontweight='bold')
+                    st.pyplot(fig)
+                    plt.close()
+                except Exception as e2:
+                    st.warning(f"Could not render SHAP plot: {str(e2)}")
+                    plt.close()
     
     # Dynamic caption based on top features
     feature_contributions = []
