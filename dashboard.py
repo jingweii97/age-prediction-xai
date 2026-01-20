@@ -644,27 +644,26 @@ with tab1:
         # Create waterfall plot (reduced size)
         # Create waterfall plot (reduced size)
         # Use columns to constrain width (Streamlit expands images by default)
-        col_shap, _ = st.columns([0.8, 0.2])
-        with col_shap:
+        try:
+            fig, ax = plt.subplots(figsize=(7, 4))
+            shap.waterfall_plot(shap_values[0, :, prediction], show=False)
+            plt.title(f"Feature Contributions for '{predicted_class}' Prediction", fontsize=12, fontweight='bold')
+            # Use bbox_inches='tight' instead of tight_layout for safer saving/rendering
+            st.pyplot(fig, clear_figure=True, bbox_inches='tight')
+            plt.close()
+        except Exception as e:
+            # Fallback: Try plotting with minimal configuration
             try:
+                st.warning(f"Standard plot failed ({str(e)}), attempting fallback...")
+                plt.close() 
                 fig, ax = plt.subplots(figsize=(7, 4))
                 shap.waterfall_plot(shap_values[0, :, prediction], show=False)
-                plt.title(f"Feature Contributions for '{predicted_class}' Prediction", fontsize=12, fontweight='bold')
-                plt.tight_layout()
-                st.pyplot(fig)
+                plt.title("Feature Contributions (Fallback)", fontsize=12)
+                st.pyplot(fig, clear_figure=True)
                 plt.close()
-            except Exception as e:
-                # Fallback: Try plotting without tight_layout and simpler title
-                try:
-                    plt.close() # Ensure previous figure is closed
-                    fig, ax = plt.subplots(figsize=(7, 4))
-                    shap.waterfall_plot(shap_values[0, :, prediction], show=False)
-                    plt.title("Feature Contributions", fontsize=12, fontweight='bold')
-                    st.pyplot(fig)
-                    plt.close()
-                except Exception as e2:
-                    st.warning(f"Could not render SHAP plot: {str(e2)}")
-                    plt.close()
+            except Exception as e2:
+                st.error(f"Could not render SHAP plot: {str(e2)}")
+                plt.close()
     
     # Dynamic caption based on top features
     feature_contributions = []
@@ -973,17 +972,18 @@ with tab3:
             
         shap_values_global = get_global_shap_values(shap_explainer, X_research)
         
-        # Create beeswarm plot for global importance
-        st.markdown("#### Global Feature Importance (Beeswarm Plot)")
-        
-        # Use columns to constrain width
-        col_global, _ = st.columns([0.8, 0.2])
-        with col_global:
-            fig, ax = plt.subplots(figsize=(8, 5))
-            shap.plots.beeswarm(shap_values_global[:, :, 1], show=False, max_display=7)
-            plt.tight_layout()
-            st.pyplot(fig, width="stretch")
+        try:
+            fig, ax = plt.subplots(figsize=(10, 6))
+            # Stacked Bar Plot for Multi-Class Feature Importance
+            # This shows the mean absolute SHAP value for each feature, stacked by class
+            shap.plots.bar(shap_values_global, show=False, max_display=10)
+            plt.title("Global Feature Importance (All Classes)", fontsize=14)
+            st.pyplot(fig, clear_figure=True, bbox_inches='tight')
             plt.close()
+        except Exception as e:
+            st.error(f"Could not render Global SHAP plot: {str(e)}")
+            plt.close()
+
         
         # Calculate mean absolute SHAP values for ranking
         mean_abs_shap = np.abs(shap_values_global.values).mean(axis=(0, 2))
