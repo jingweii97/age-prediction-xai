@@ -761,13 +761,17 @@ with tab2:
                     feature_cols = cf_df.columns
                     original_vals = combined_df.iloc[0]
                     
-                    for i in range(1, len(display_df)):
+                    for i in range(1, len(combined_df)):
                         for col in feature_cols:
-                            val = display_df.at[i, col]
-                            orig = original_vals[col]
+                            # Use numeric values from combined_df for comparison
+                            val = combined_df.at[i, col]
+                            orig = combined_df.at[0, col]
+                            
                             try:
+                                # Strict equality for categorical/integers
                                 if val == orig:
                                     display_df.at[i, col] = '-'
+                                # Tolerance check for floats
                                 elif isinstance(val, (int, float)) and isinstance(orig, (int, float)):
                                     if np.isclose(val, orig, rtol=1e-05):
                                         display_df.at[i, col] = '-'
@@ -825,6 +829,103 @@ with tab2:
                 else:
                     st.warning("No valid counterfactuals could be generated for this input.")
                     
+                # Stakeholder Guidance for DiCE
+                st.markdown("---")
+                st.markdown("### Stakeholder Guidance")
+                
+                # Logic to determine Guidance Context (Improvement vs Prevention)
+                # target_class_name comes from line 696/699 logic above. 
+                # We need to explicitly check the direction of change.
+                target_name = le.classes_[target_class]
+                
+                guidance_context = "NEUTRAL"
+                if predicted_class == 'Aged (65+)' and target_name == 'Adult (19-64)':
+                    guidance_context = "CORRECTIVE" # Goal: Get back to Adult
+                elif predicted_class == 'Adult (19-64)' and target_name == 'Aged (65+)':
+                    guidance_context = "PREVENTATIVE" # Goal: Don't become Aged
+                elif predicted_class == 'Infant/Child/Adolescent' and target_name == 'Aged (65+)':
+                     guidance_context = "PREVENTATIVE"
+                
+                # Dynamic Content Generation
+                if stakeholder == "Clinician":
+                    if guidance_context == "CORRECTIVE":
+                        title = "🩺 Therapeutic Targets (Recovery)"
+                        content = """
+<ul style="margin: 0.5rem 0;">
+    <li><strong>Clinical Goal:</strong> Revert biological aging markers from <strong>Aged</strong> to <strong>Adult</strong> profile.</li>
+    <li><strong>Primary Intervention:</strong> Tighten glycemic control (Glucose/Insulin) to target range shown above.</li>
+    <li><strong>Monitoring:</strong> Schedule follow-up HbA1c to track regression of metabolic age.</li>
+</ul>
+"""
+                    elif guidance_context == "PREVENTATIVE":
+                        title = "🩺 Risk Mitigation (Prevention)"
+                        content = """
+<ul style="margin: 0.5rem 0;">
+    <li><strong>Clinical Goal:</strong> Maintain <strong>Adult</strong> status and prevent progression to <strong>Aged</strong> profile.</li>
+    <li><strong>Risk Factors:</strong> The counterfactuals highlight thresholds where current metabolic stability would decompensate.</li>
+    <li><strong>Advisory:</strong> Counsel patient on maintaining current BMI and glycemic parameters to avoid this trajectory.</li>
+</ul>
+"""
+                    else:
+                         title = "🩺 Model Interpretation"
+                         content = "Counterfactuals demonstrate decision boundaries between classes for model validation."
+
+                    st.markdown(f"""<div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); padding: 1.2rem; border-radius: 10px; border-left: 4px solid #0066cc;">
+    <strong>{title}</strong><br><br>
+    {content}
+</div>""", unsafe_allow_html=True)
+                
+                elif stakeholder == "Patient":
+                    if guidance_context == "CORRECTIVE":
+                        title = "💡 Action Plan (Get Younger)"
+                        content = """<ul style="margin: 0.5rem 0;">
+    <li><strong>Goal:</strong> Your numbers suggest an "Aged" profile. Let's aim for the "Adult" targets above!</li>
+    <li><strong>Key Steps:</strong> Lowering sugar/insulin levels is your most powerful tool right now.</li>
+    <li><strong>Motivation:</strong> Small changes in diet/exercise can help move you back to the "Adult" zone.</li>
+</ul>"""
+                        style = "background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%); border-left: 4px solid #28a745;" # Green for go
+                    elif guidance_context == "PREVENTATIVE":
+                        title = "🛡️ Stay Healthy (Warning)"
+                        content = """<ul style="margin: 0.5rem 0;">
+    <li><strong>Goal:</strong> You are currently in the healthy "Adult" range. Keep it that way!</li>
+    <li><strong>Warning:</strong> The table showing "Counterfactuals" reveals what would happen if your health slipped.</li>
+    <li><strong>Action:</strong> Don't let your sugar or weight drift up to those levels. Keep doing what works!</li>
+</ul>"""
+                        style = "background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%); border-left: 4px solid #ffc107;" # Yellow/Orange for warning
+                    else:
+                        title = "💡 Insight"
+                        content = "These scenarios show how different health numbers change the AI's prediction."
+                        style = "background: #f8f9fa; border-left: 4px solid #6c757d;"
+
+                    st.markdown(f"""<div style="{style} padding: 1.2rem; border-radius: 10px;">
+    <strong>{title}</strong><br><br>
+    {content}
+</div>""", unsafe_allow_html=True)
+                
+                else:  # Policymaker
+                    if guidance_context == "CORRECTIVE":
+                        title = "📊 Intervention Efficacy"
+                        content = """<ul style="margin: 0.5rem 0;">
+    <li><strong>Target Population:</strong> 'Aged' group with reversible metabolic risk.</li>
+    <li><strong>Projected Impact:</strong> Targeted glycemic interventions could reclassify this demographic to 'Adult' status, reducing dependency ratios.</li>
+    <li><strong>ROI:</strong> High return on investment for diabetes prevention programs in this cohort.</li>
+</ul>"""
+                    elif guidance_context == "PREVENTATIVE":
+                        title = "📊 Risk Surveillance"
+                        content = """<ul style="margin: 0.5rem 0;">
+    <li><strong>Target Population:</strong> At-risk 'Adult' population near metabolic tipping points.</li>
+    <li><strong>Strategy:</strong> Preventative screening to catch patients before they cross the thresholds shown in counterfactuals.</li>
+    <li><strong>Metric:</strong> Track incidence rate of adults transitioning to 'Aged' biological classification.</li>
+</ul>"""
+                    else:
+                         title = "📊 Model Analysis"
+                         content = "Boundary analysis for regulatory auditing."
+
+                    st.markdown(f"""<div style="background: linear-gradient(135deg, #e7f3ff 0%, #cce5ff 100%); padding: 1.2rem; border-radius: 10px; border-left: 4px solid #004085;">
+    <strong>{title}</strong><br><br>
+    {content}
+</div>""", unsafe_allow_html=True)
+
             except Exception as e:
                 st.error(f"Could not generate counterfactuals: {str(e)}")
                 st.info("Try adjusting input values or check if the prediction allows for counterfactual changes.")
