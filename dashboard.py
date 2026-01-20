@@ -801,7 +801,7 @@ with tab2:
                     display_df.insert(0, 'Scenario', ['Original (Current)'] + [f'Counterfactual {i+1}' for i in range(len(cf_df))])
                     
                     st.markdown("#### Counterfactual Scenarios")
-                    st.dataframe(display_df, use_container_width=True)
+                    st.dataframe(display_df, width="stretch")
                     
                     # Only show actionable recommendations for Aged → Adult transitions
                     if is_actionable:
@@ -982,7 +982,7 @@ with tab3:
             fig, ax = plt.subplots(figsize=(8, 5))
             shap.plots.beeswarm(shap_values_global[:, :, 1], show=False, max_display=7)
             plt.tight_layout()
-            st.pyplot(fig, use_container_width=True)
+            st.pyplot(fig, width="stretch")
             plt.close()
         
         # Calculate mean absolute SHAP values for ranking
@@ -995,7 +995,7 @@ with tab3:
         importance_df = pd.DataFrame(feature_importance, columns=['Feature', 'Mean |SHAP| (Impact)'])
         importance_df['Feature'] = importance_df['Feature'].str.replace('_', ' ')
         importance_df.index = range(1, len(importance_df) + 1)
-        st.dataframe(importance_df, use_container_width=True)
+        st.dataframe(importance_df, width="stretch")
     
     # Stakeholder-specific interpretation
     st.markdown("---")
